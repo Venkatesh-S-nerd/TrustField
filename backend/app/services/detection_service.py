@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 
 from app.models.log import Log
 from app.models.incident import Incident
+from ml.inference.predict import predict_anomaly
 
 
 # ============================================================
@@ -50,42 +51,89 @@ def analyze_log(log: Log) -> dict:
     risk_score = 0
     reasons = []
 
-    # --------------------------------------------------------
-    # FAILED / DENIED ACTIVITY
-    # --------------------------------------------------------
+    # ========================================================
+    # ML ANOMALY DETECTION
+    # ========================================================
 
-    if status in {"denied", "failed", "failure"}:
+    ml_prediction = None
+    ml_anomaly = False
+    ml_error = None
+
+    try:
+
+        ml_result = predict_anomaly({
+            "user_id": log.user_id,
+            "action": log.action,
+            "resource_type": log.resource_type,
+            "status": log.status,
+            "timestamp": log.timestamp,
+        })
+
+        ml_prediction = ml_result["prediction"]
+        ml_anomaly = ml_result["anomaly"]
+
+        if ml_anomaly:
+
+            risk_score += 20
+
+            reasons.append(
+                "Machine learning model detected anomalous activity"
+            )
+
+    except Exception as error:
+
+        # Keep the rule-based detection working even if
+        # the ML model cannot process a particular log.
+
+        ml_error = str(error)
+
+        reasons.append(
+            "ML analysis unavailable for this activity"
+        )
+
+    # ========================================================
+    # FAILED / DENIED ACTIVITY
+    # ========================================================
+
+    if status in {
+        "denied",
+        "failed",
+        "failure"
+    }:
+
         risk_score += 20
 
         reasons.append(
             "Permission denied or failed activity detected"
         )
 
-    # --------------------------------------------------------
+    # ========================================================
     # HIGH-RISK ACTION
-    # --------------------------------------------------------
+    # ========================================================
 
     if action in HIGH_RISK_ACTIONS:
+
         risk_score += 40
 
         reasons.append(
             f"High-risk action detected: {action}"
         )
 
-    # --------------------------------------------------------
-    # CRITICAL ACTION
-    # --------------------------------------------------------
+    # ========================================================
+    # CRITICAL PRIVILEGE ACTION
+    # ========================================================
 
     if action in CRITICAL_ACTIONS:
+
         risk_score += 70
 
         reasons.append(
             f"Critical privilege action detected: {action}"
         )
 
-    # --------------------------------------------------------
+    # ========================================================
     # PRIVILEGE-RELATED RESOURCE
-    # --------------------------------------------------------
+    # ========================================================
 
     privilege_resources = {
         "role",
@@ -96,20 +144,22 @@ def analyze_log(log: Log) -> dict:
     }
 
     if resource_type in privilege_resources:
+
         risk_score += 25
 
         reasons.append(
             "IAM or privilege-related resource accessed"
         )
 
-    # --------------------------------------------------------
+    # ========================================================
     # HIGH-RISK ACTION + PRIVILEGE RESOURCE
-    # --------------------------------------------------------
+    # ========================================================
 
     if (
         action in HIGH_RISK_ACTIONS
         and resource_type in privilege_resources
     ):
+
         risk_score += 20
 
         reasons.append(
@@ -117,49 +167,69 @@ def analyze_log(log: Log) -> dict:
             "privilege-related resource"
         )
 
-    # --------------------------------------------------------
+    # ========================================================
     # CAP SCORE
-    # --------------------------------------------------------
+    # ========================================================
 
     risk_score = min(risk_score, 100)
 
-    # --------------------------------------------------------
+    # ========================================================
     # DETERMINE RISK LEVEL
-    # --------------------------------------------------------
+    # ========================================================
 
     if risk_score >= 80:
+
         risk_level = RISK_CRITICAL
 
     elif risk_score >= 60:
+
         risk_level = RISK_HIGH
 
     elif risk_score >= 30:
+
         risk_level = RISK_MEDIUM
 
     else:
+
         risk_level = RISK_LOW
 
-    # --------------------------------------------------------
+    # ========================================================
     # NO SUSPICIOUS BEHAVIOR
-    # --------------------------------------------------------
+    # ========================================================
 
     if not reasons:
+
         reasons.append(
             "No suspicious privilege activity detected"
         )
 
-    return {
+    # ========================================================
+    # RETURN DETECTION RESULT
+    # ========================================================
+
+    result = {
         "log_id": log.id,
         "user_id": log.user_id,
         "username": log.username,
         "action": log.action,
         "resource_type": log.resource_type,
         "status": log.status,
+
         "risk_score": risk_score,
         "risk_level": risk_level,
         "suspicious": risk_score >= 60,
+
+        "ml_prediction": ml_prediction,
+        "ml_anomaly": ml_anomaly,
+
         "reasons": reasons,
     }
+
+    if ml_error:
+
+        result["ml_error"] = ml_error
+
+    return result
 
 
 # ============================================================
@@ -171,28 +241,50 @@ def create_incident_from_detection(
     detection: dict
 ) -> Incident | None:
 
+    # --------------------------------------------------------
     # Only HIGH and CRITICAL detections create incidents
+    # --------------------------------------------------------
+
     if not detection["suspicious"]:
+
         return None
 
     log_id = detection["log_id"]
 
+    # --------------------------------------------------------
     # Prevent duplicate incidents for the same log
+    # --------------------------------------------------------
+
     existing_incident = (
         db.query(Incident)
-        .filter(Incident.log_id == log_id)
+        .filter(
+            Incident.log_id == log_id
+        )
         .first()
     )
 
     if existing_incident:
+
         return existing_incident
 
+    # --------------------------------------------------------
+    # Incident severity
+    # --------------------------------------------------------
+
     severity = detection["risk_level"]
+
+    # --------------------------------------------------------
+    # Incident title
+    # --------------------------------------------------------
 
     title = (
         f"Privilege Escalation Detected - "
         f"{detection['action']}"
     )
+
+    # --------------------------------------------------------
+    # Incident description
+    # --------------------------------------------------------
 
     description = (
         f"Suspicious activity detected for user "
@@ -200,8 +292,14 @@ def create_incident_from_detection(
         f"Action: {detection['action']}. "
         f"Resource: {detection['resource_type']}. "
         f"Risk score: {detection['risk_score']}. "
-        f"Reasons: {'; '.join(detection['reasons'])}"
+        f"ML anomaly: {detection['ml_anomaly']}. "
+        f"Reasons: "
+        f"{'; '.join(detection['reasons'])}"
     )
+
+    # --------------------------------------------------------
+    # Create incident
+    # --------------------------------------------------------
 
     incident = Incident(
         title=title,
@@ -213,7 +311,9 @@ def create_incident_from_detection(
     )
 
     db.add(incident)
+
     db.commit()
+
     db.refresh(incident)
 
     return incident
@@ -239,23 +339,44 @@ def analyze_recent_logs(
 
     for log in logs:
 
+        # ----------------------------------------------------
+        # Analyze log
+        # ----------------------------------------------------
+
         detection = analyze_log(log)
 
         detections.append(detection)
 
-        # Automatically create incident
+        # ----------------------------------------------------
+        # Automatically create incident if suspicious
+        # ----------------------------------------------------
+
         create_incident_from_detection(
             db=db,
             detection=detection
         )
 
+    # --------------------------------------------------------
+    # Return complete detection summary
+    # --------------------------------------------------------
+
     return {
         "detections": detections,
-        "total_analyzed": len(detections),
+
+        "total_analyzed": len(
+            detections
+        ),
+
         "suspicious_count": sum(
             1
             for detection in detections
             if detection["suspicious"]
+        ),
+
+        "ml_anomalies": sum(
+            1
+            for detection in detections
+            if detection["ml_anomaly"]
         ),
     }
 
