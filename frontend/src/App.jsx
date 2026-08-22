@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
+import Login from "./pages/Login";
 
 const API = "http://127.0.0.1:8000";
 
 function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [activePage, setActivePage] = useState("Dashboard");
   const [detections, setDetections] = useState([]);
   const [incidents, setIncidents] = useState([]);
@@ -88,6 +90,14 @@ function App() {
     };
   }, [detections]);
 
+  if (!isLoggedIn) {
+  return (
+    <>
+      <style>{styles}</style>
+      <Login onLogin={() => setIsLoggedIn(true)} />
+    </>
+  );
+}
   return (
     <div className="app">
       <style>{styles}</style>
@@ -966,6 +976,180 @@ body {
 
   background: #060912;
   color: #e8edf7;
+}
+
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+
+  background:
+    radial-gradient(
+      circle at 50% 20%,
+      rgba(43, 119, 255, 0.12),
+      transparent 35%
+    ),
+    #060912;
+}
+
+.login-card {
+  width: 420px;
+  padding: 38px;
+
+  border: 1px solid #17243a;
+  border-radius: 16px;
+
+  background: #0a101b;
+
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.45);
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 35px;
+}
+
+.login-icon {
+  width: 46px;
+  height: 46px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 12px;
+
+  color: white;
+  font-size: 22px;
+  font-weight: 800;
+
+  background: linear-gradient(
+    135deg,
+    #2678ff,
+    #703cff
+  );
+
+  box-shadow:
+    0 0 30px rgba(48, 111, 255, 0.25);
+}
+
+.login-brand h1 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.login-brand p {
+  margin: 3px 0 0;
+  color: #71809a;
+  font-size: 11px;
+}
+
+.login-heading {
+  margin-bottom: 25px;
+}
+
+.login-heading h2 {
+  margin: 0;
+  font-size: 27px;
+}
+
+.login-heading p {
+  margin: 8px 0 0;
+  color: #71809a;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.input-group {
+  margin-bottom: 18px;
+}
+
+.input-group label {
+  display: block;
+  margin-bottom: 7px;
+
+  color: #9aa8bc;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.input-group input {
+  width: 100%;
+
+  padding: 13px 14px;
+
+  border: 1px solid #1c2a40;
+  border-radius: 7px;
+
+  outline: none;
+
+  background: #080e18;
+  color: #e8edf7;
+
+  font-size: 12px;
+}
+
+.input-group input:focus {
+  border-color: #3685ff;
+  box-shadow: 0 0 0 2px rgba(54, 133, 255, 0.1);
+}
+
+.input-group input::placeholder {
+  color: #4d5b70;
+}
+
+.login-button {
+  width: 100%;
+
+  margin-top: 8px;
+  padding: 13px;
+
+  border: 0;
+  border-radius: 7px;
+
+  background: linear-gradient(
+    135deg,
+    #2678ff,
+    #703cff
+  );
+
+  color: white;
+
+  font-size: 12px;
+  font-weight: 800;
+
+  cursor: pointer;
+}
+
+.login-button:hover {
+  opacity: 0.9;
+}
+
+.login-error {
+  margin-bottom: 12px;
+
+  padding: 10px;
+
+  border: 1px solid rgba(255, 67, 91, 0.3);
+  border-radius: 6px;
+
+  background: rgba(255, 67, 91, 0.08);
+
+  color: #ff687d;
+  font-size: 11px;
+}
+
+.login-footer {
+  margin-top: 25px;
+
+  text-align: center;
+
+  color: #46546a;
+  font-size: 9px;
 }
 
 button {
