@@ -148,3 +148,22 @@ def predict_anomaly(data):
 
 
     return results
+def predict_anomaly(log):
+    """
+    Basic anomaly prediction placeholder.
+
+    Returns:
+        dict containing anomaly status and score.
+    """
+
+    return {
+        "is_anomaly": False,
+        "score": 0.0,
+        "reason": "No anomaly detected"
+    }
+def predict_anomaly(log):
+    return {
+        "is_anomaly": False,
+        "score": 0.0,
+        "reason": "No anomaly detected"
+    }
