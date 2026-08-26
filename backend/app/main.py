@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
+from app.routes.detection import router as detection_router
 from app.routes.auth import router as auth_router
 from app.routes.users import router as users_router
 from app.routes.alerts import router as alerts_router
@@ -44,6 +44,7 @@ app.include_router(incidents_router)
 app.include_router(logs_router)
 app.include_router(roles_router)
 app.include_router(permissions_router)
+app.include_router(detection_router)
 
 
 # =========================
