@@ -13,21 +13,21 @@ function Dashboard() {
     setLoading(true);
 
     try {
-      const [alertsRes, incidentsRes, logsRes] = await Promise.all([
-        fetch(`${API}/alerts/detect`),
+      const [detectionRes, incidentsRes, logsRes] = await Promise.all([
+        fetch(`${API}/detection/analyze?limit=100`),
         fetch(`${API}/incidents/`),
         fetch(`${API}/logs/`),
       ]);
 
-      if (!alertsRes.ok || !incidentsRes.ok || !logsRes.ok) {
+      if (!detectionRes.ok || !incidentsRes.ok || !logsRes.ok) {
         throw new Error("Backend request failed");
       }
 
-      const alertsData = await alertsRes.json();
+      const detectionData = await detectionRes.json();
       const incidentsData = await incidentsRes.json();
       const logsData = await logsRes.json();
 
-      setAlerts(alertsData.detections || []);
+      setAlerts(detectionData.detections || []);
       setIncidents(incidentsData || []);
       setLogs(logsData || []);
 
@@ -43,6 +43,10 @@ function Dashboard() {
   useEffect(() => {
     loadDashboard();
   }, []);
+
+  // =========================
+  // STATISTICS
+  // =========================
 
   const criticalCount = alerts.filter(
     (alert) => alert.risk_level === "CRITICAL"
@@ -62,14 +66,18 @@ function Dashboard() {
 
   const mlAnomalies = alerts.filter(
     (alert) =>
-      alert.ml_prediction === true ||
       alert.ml_anomaly === true ||
+      alert.ml_prediction === -1 ||
       alert.ml_prediction === "anomaly"
   ).length;
 
   const suspiciousCount = alerts.filter(
     (alert) => alert.suspicious === true
   ).length;
+
+  // =========================
+  // LOADING
+  // =========================
 
   if (loading) {
     return (
@@ -88,10 +96,17 @@ function Dashboard() {
     );
   }
 
+  // =========================
+  // DASHBOARD
+  // =========================
+
   return (
     <div className="dashboard-page">
 
-      {/* HEADER */}
+      {/* =========================
+          HEADER
+      ========================= */}
+
       <div className="dashboard-header">
         <div>
           <span className="breadcrumb">TrustField / Dashboard</span>
@@ -99,6 +114,7 @@ function Dashboard() {
         </div>
 
         <div className="dashboard-actions">
+
           <div className="connection-status">
             <span
               className={`status-dot ${
@@ -111,16 +127,24 @@ function Dashboard() {
               : "Backend disconnected"}
           </div>
 
-          <button className="refresh-button" onClick={loadDashboard}>
+          <button
+            className="refresh-button"
+            onClick={loadDashboard}
+          >
             ↻ Refresh
           </button>
+
         </div>
       </div>
 
-      {/* CONNECTION ERROR */}
+      {/* =========================
+          CONNECTION ERROR
+      ========================= */}
+
       {!backendConnected && (
         <div className="error-banner">
           <strong>Backend connection error</strong>
+
           <p>
             Unable to connect to the TrustField backend.
             Make sure FastAPI is running on port 8000.
@@ -128,10 +152,16 @@ function Dashboard() {
         </div>
       )}
 
-      {/* HERO */}
+      {/* =========================
+          HERO
+      ========================= */}
+
       <div className="dashboard-hero">
+
         <div>
-          <span className="hero-label">SECURITY OVERVIEW</span>
+          <span className="hero-label">
+            SECURITY OVERVIEW
+          </span>
 
           <h2>
             Privilege Escalation
@@ -146,42 +176,65 @@ function Dashboard() {
         </div>
 
         <div className="protection-status">
-          <div className="protection-icon">⬡</div>
+          <div className="protection-icon">✓</div>
 
           <strong>PROTECTED</strong>
         </div>
+
       </div>
 
-      {/* STAT CARDS */}
+      {/* =========================
+          STAT CARDS
+      ========================= */}
+
       <div className="stats-grid">
 
         <div className="stat-card">
-          <span className="stat-label">TOTAL LOGS</span>
+          <span className="stat-label">
+            TOTAL LOGS
+          </span>
+
           <strong>{logs.length}</strong>
+
           <span className="stat-description">
             Recorded activities
           </span>
         </div>
 
+
         <div className="stat-card suspicious-card">
-          <span className="stat-label">SUSPICIOUS</span>
+          <span className="stat-label">
+            SUSPICIOUS
+          </span>
+
           <strong>{suspiciousCount}</strong>
+
           <span className="stat-description">
             Suspicious activities
           </span>
         </div>
 
+
         <div className="stat-card critical-card">
-          <span className="stat-label">CRITICAL</span>
+          <span className="stat-label">
+            CRITICAL
+          </span>
+
           <strong>{criticalCount}</strong>
+
           <span className="stat-description">
             Critical threats
           </span>
         </div>
 
+
         <div className="stat-card ml-card">
-          <span className="stat-label">ML ANOMALIES</span>
+          <span className="stat-label">
+            ML ANOMALIES
+          </span>
+
           <strong>{mlAnomalies}</strong>
+
           <span className="stat-description">
             AI detected anomalies
           </span>
@@ -189,11 +242,18 @@ function Dashboard() {
 
       </div>
 
-      {/* LOWER GRID */}
+      {/* =========================
+          LOWER GRID
+      ========================= */}
+
       <div className="dashboard-grid">
 
-        {/* RISK DISTRIBUTION */}
+        {/* =========================
+            RISK DISTRIBUTION
+        ========================= */}
+
         <div className="dashboard-card">
+
           <div className="card-header">
             <div>
               <h3>Risk Distribution</h3>
@@ -228,10 +288,16 @@ function Dashboard() {
             />
 
           </div>
+
         </div>
 
-        {/* SYSTEM STATUS */}
+
+        {/* =========================
+            SYSTEM STATUS
+        ========================= */}
+
         <div className="dashboard-card">
+
           <div className="card-header">
             <div>
               <h3>Detection Systems</h3>
@@ -262,36 +328,62 @@ function Dashboard() {
             />
 
           </div>
+
         </div>
 
       </div>
 
-      {/* RECENT THREATS */}
+
+      {/* =========================
+          RECENT DETECTION ACTIVITY
+      ========================= */}
+
       <div className="dashboard-card recent-threats">
 
         <div className="card-header">
+
           <div>
-            <h3>Recent Suspicious Activity</h3>
-            <p>Highest priority detections</p>
+            <h3>Recent Detection Activity</h3>
+
+            <p>
+              Latest security analysis results
+            </p>
           </div>
 
           <span className="threat-count">
             {alerts.length} detected
           </span>
+
         </div>
 
+
         {alerts.length === 0 ? (
+
           <div className="empty-state">
-            <div className="empty-icon">✓</div>
-            <h3>No suspicious activity detected.</h3>
+
+            <div className="empty-icon">
+              ✓
+            </div>
+
+            <h3>
+              No detection results.
+            </h3>
+
             <p>
-              The system currently has nothing requiring attention.
+              The detection system has not returned
+              any analysis results yet.
             </p>
+
           </div>
+
         ) : (
+
           <div className="threat-table">
 
+            {/* TABLE HEADER */}
+
             <div className="table-header">
+
               <span>RISK</span>
               <span>USER</span>
               <span>ACTION</span>
@@ -299,48 +391,101 @@ function Dashboard() {
               <span>STATUS</span>
               <span>ML</span>
               <span>SCORE</span>
+
             </div>
 
-            {alerts.slice(0, 5).map((alert, index) => (
 
-              <div className="table-row" key={alert.log_id || index}>
+            {/* TABLE ROWS */}
+
+            {alerts.slice(0, 10).map((alert, index) => (
+
+              <div
+                className="table-row"
+                key={alert.log_id || index}
+              >
+
+                {/* RISK */}
 
                 <span>
-                  <RiskBadge level={alert.risk_level} />
+                  <RiskBadge
+                    level={alert.risk_level}
+                  />
                 </span>
 
+
+                {/* USER */}
+
                 <span className="user-cell">
-                  <strong>{alert.username || "Unknown"}</strong>
+
+                  <strong>
+                    {alert.username || "Unknown"}
+                  </strong>
+
                   <small>
                     ID: {alert.user_id ?? "-"}
                   </small>
+
                 </span>
 
+
+                {/* ACTION */}
+
                 <span>
-                  <code>{alert.action || "-"}</code>
+                  <code>
+                    {alert.action || "-"}
+                  </code>
                 </span>
+
+
+                {/* RESOURCE */}
 
                 <span>
                   {alert.resource_type || "-"}
                 </span>
 
+
+                {/* STATUS */}
+
                 <span>
+
                   <span
                     className={`status-badge ${
-                      alert.status === "denied"
+                      alert.status?.toLowerCase() === "denied" ||
+                      alert.status?.toLowerCase() === "failed"
                         ? "denied"
                         : "success"
                     }`}
                   >
                     {alert.status || "-"}
                   </span>
+
                 </span>
 
+
+                {/* ML */}
+
                 <span>
-                  <span className="ml-badge">
-                    ANOMALY
-                  </span>
+
+                  {alert.ml_anomaly === true ||
+                  alert.ml_prediction === -1 ||
+                  alert.ml_prediction === "anomaly" ? (
+
+                    <span className="ml-badge">
+                      ANOMALY
+                    </span>
+
+                  ) : (
+
+                    <span className="ml-badge normal">
+                      NORMAL
+                    </span>
+
+                  )}
+
                 </span>
+
+
+                {/* SCORE */}
 
                 <strong>
                   {alert.risk_score ?? 0}
@@ -351,29 +496,45 @@ function Dashboard() {
             ))}
 
           </div>
+
         )}
 
       </div>
 
-      {/* INCIDENT SUMMARY */}
+
+      {/* =========================
+          INCIDENT SUMMARY
+      ========================= */}
+
       <div className="dashboard-card incident-summary">
 
         <div className="card-header">
+
           <div>
             <h3>Incident Overview</h3>
-            <p>Generated security incidents</p>
+
+            <p>
+              Generated security incidents
+            </p>
           </div>
 
           <strong className="incident-count">
             {incidents.length}
           </strong>
+
         </div>
 
         <p className="incident-text">
+
           TrustField has generated{" "}
-          <strong>{incidents.length}</strong>{" "}
-          security incidents based on detected privilege
-          escalation activity.
+
+          <strong>
+            {incidents.length}
+          </strong>{" "}
+
+          security incidents based on detected
+          privilege escalation activity.
+
         </p>
 
       </div>
@@ -390,21 +551,34 @@ function Dashboard() {
 function RiskBar({ label, count, total }) {
 
   const percentage =
-    total > 0 ? Math.round((count / total) * 100) : 0;
+    total > 0
+      ? Math.round((count / total) * 100)
+      : 0;
 
   return (
     <div className="risk-item">
 
       <div className="risk-label">
-        <span>{label}</span>
-        <strong>{count}</strong>
+
+        <span>
+          {label}
+        </span>
+
+        <strong>
+          {count}
+        </strong>
+
       </div>
 
       <div className="risk-track">
+
         <div
           className={`risk-fill ${label.toLowerCase()}`}
-          style={{ width: `${percentage}%` }}
+          style={{
+            width: `${percentage}%`
+          }}
         ></div>
+
       </div>
 
     </div>
@@ -422,19 +596,29 @@ function SystemStatus({ name, active }) {
     <div className="system-status">
 
       <div className="system-name">
+
         <span
           className={`system-dot ${
-            active ? "active" : "inactive"
+            active
+              ? "active"
+              : "inactive"
           }`}
         ></span>
 
         {name}
+
       </div>
 
       <strong
-        className={active ? "active-text" : "inactive-text"}
+        className={
+          active
+            ? "active-text"
+            : "inactive-text"
+        }
       >
-        {active ? "ACTIVE" : "OFFLINE"}
+        {active
+          ? "ACTIVE"
+          : "OFFLINE"}
       </strong>
 
     </div>

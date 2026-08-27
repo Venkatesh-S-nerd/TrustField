@@ -8,31 +8,54 @@ function Alerts() {
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("ALL");
 
+  // ============================================================
+  // LOAD SUSPICIOUS ALERTS
+  // ============================================================
+
   const loadAlerts = async () => {
     setLoading(true);
     setError("");
 
     try {
-      const response = await fetch(`${API}/alerts/detect`);
+      const response = await fetch(
+        `${API}/detection/suspicious`
+      );
 
       if (!response.ok) {
-        throw new Error("Failed to fetch alerts");
+        throw new Error(
+          `Backend returned ${response.status}`
+        );
       }
 
       const data = await response.json();
 
+      console.log("Suspicious alerts:", data);
+
       setAlerts(data.detections || []);
-    } catch (err) {
-      console.error("Alerts error:", err);
-      setError("Unable to load alerts from the TrustField backend.");
+    } catch (error) {
+      console.error("Alerts error:", error);
+
+      setError(
+        "Unable to load suspicious alerts from the TrustField backend."
+      );
+
+      setAlerts([]);
     } finally {
       setLoading(false);
     }
   };
 
+  // ============================================================
+  // LOAD ON PAGE OPEN
+  // ============================================================
+
   useEffect(() => {
     loadAlerts();
   }, []);
+
+  // ============================================================
+  // FILTER ALERTS
+  // ============================================================
 
   const filteredAlerts =
     filter === "ALL"
@@ -40,6 +63,10 @@ function Alerts() {
       : alerts.filter(
           (alert) => alert.risk_level === filter
         );
+
+  // ============================================================
+  // COUNTS
+  // ============================================================
 
   const criticalCount = alerts.filter(
     (alert) => alert.risk_level === "CRITICAL"
@@ -53,17 +80,24 @@ function Alerts() {
     (alert) => alert.risk_level === "MEDIUM"
   ).length;
 
-  const mlCount = alerts.filter(
-    (alert) =>
-      alert.ml_prediction === true ||
-      alert.ml_anomaly === true ||
-      alert.ml_prediction === "anomaly"
+  const lowCount = alerts.filter(
+    (alert) => alert.risk_level === "LOW"
   ).length;
+
+  const mlCount = alerts.filter(
+    (alert) => alert.ml_anomaly === true
+  ).length;
+
+  // ============================================================
+  // RENDER
+  // ============================================================
 
   return (
     <div className="dashboard-page">
 
-      {/* HEADER */}
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
 
       <div className="dashboard-header">
 
@@ -72,11 +106,11 @@ function Alerts() {
             TrustField / Alerts
           </span>
 
-          <h1>Alerts</h1>
+          <h1>Security Alerts</h1>
 
           <p className="page-description">
-            Monitor detected privilege escalation threats
-            and suspicious activities.
+            Monitor suspicious privilege escalation
+            activity detected by TrustField.
           </p>
         </div>
 
@@ -90,90 +124,129 @@ function Alerts() {
           <button
             className="refresh-button"
             onClick={loadAlerts}
+            disabled={loading}
           >
-            ↻ Refresh
+            {loading ? "Refreshing..." : "↻ Refresh"}
           </button>
 
         </div>
 
       </div>
 
-      {/* ERROR */}
+
+      {/* ======================================================
+          ERROR
+      ====================================================== */}
 
       {error && (
         <div className="error-banner">
-          <strong>Backend connection error</strong>
 
-          <p>{error}</p>
+          <strong>
+            Backend connection error
+          </strong>
+
+          <p>
+            {error}
+          </p>
+
         </div>
       )}
 
-      {/* SUMMARY */}
+
+      {/* ======================================================
+          SUMMARY CARDS
+      ====================================================== */}
 
       <div className="stats-grid">
 
         <div className="stat-card critical-card">
+
           <span className="stat-label">
             CRITICAL
           </span>
 
-          <strong>{criticalCount}</strong>
+          <strong>
+            {criticalCount}
+          </strong>
 
           <span className="stat-description">
             Critical threats
           </span>
+
         </div>
 
+
         <div className="stat-card suspicious-card">
+
           <span className="stat-label">
             HIGH RISK
           </span>
 
-          <strong>{highCount}</strong>
+          <strong>
+            {highCount}
+          </strong>
 
           <span className="stat-description">
             High priority alerts
           </span>
+
         </div>
 
+
         <div className="stat-card">
+
           <span className="stat-label">
             MEDIUM
           </span>
 
-          <strong>{mediumCount}</strong>
+          <strong>
+            {mediumCount}
+          </strong>
 
           <span className="stat-description">
             Medium risk activity
           </span>
+
         </div>
 
+
         <div className="stat-card ml-card">
+
           <span className="stat-label">
             ML ANOMALIES
           </span>
 
-          <strong>{mlCount}</strong>
+          <strong>
+            {mlCount}
+          </strong>
 
           <span className="stat-description">
             Detected by ML model
           </span>
+
         </div>
 
       </div>
 
-      {/* ALERTS CARD */}
+
+      {/* ======================================================
+          ALERT TABLE CARD
+      ====================================================== */}
 
       <div className="dashboard-card recent-threats">
 
         <div className="card-header">
 
           <div>
-            <h3>Detected Threats</h3>
+
+            <h3>
+              Detected Threats
+            </h3>
 
             <p>
-              Activities requiring attention
+              Suspicious activities requiring attention
             </p>
+
           </div>
 
           <span className="threat-count">
@@ -182,158 +255,376 @@ function Alerts() {
 
         </div>
 
-        {/* FILTERS */}
+
+        {/* ====================================================
+            FILTER BUTTONS
+        ==================================================== */}
 
         <div className="alert-filters">
 
-          {["ALL", "CRITICAL", "HIGH", "MEDIUM", "LOW"].map(
-            (level) => (
-              <button
-                key={level}
-                className={
-                  filter === level
-                    ? "filter-button active"
-                    : "filter-button"
-                }
-                onClick={() => setFilter(level)}
-              >
-                {level}
-              </button>
-            )
-          )}
+          {[
+            "ALL",
+            "CRITICAL",
+            "HIGH",
+            "MEDIUM",
+            "LOW"
+          ].map((level) => (
+
+            <button
+              key={level}
+              className={
+                filter === level
+                  ? "filter-button active"
+                  : "filter-button"
+              }
+              onClick={() => setFilter(level)}
+            >
+              {level}
+            </button>
+
+          ))}
 
         </div>
 
-        {/* LOADING */}
+
+        {/* ====================================================
+            LOADING
+        ==================================================== */}
 
         {loading && (
+
           <div className="empty-state">
-            <h3>Loading alerts...</h3>
-          </div>
-        )}
-
-        {/* EMPTY */}
-
-        {!loading && filteredAlerts.length === 0 && (
-          <div className="empty-state">
-
-            <div className="empty-icon">
-              ✓
-            </div>
 
             <h3>
-              No alerts found
+              Loading alerts...
             </h3>
 
             <p>
-              No threats match the selected filter.
+              TrustField is analyzing the detection data.
             </p>
 
           </div>
+
         )}
 
-        {/* ALERT TABLE */}
 
-        {!loading && filteredAlerts.length > 0 && (
+        {/* ====================================================
+            EMPTY
+        ==================================================== */}
 
-          <div className="threat-table">
+        {!loading &&
+          !error &&
+          filteredAlerts.length === 0 && (
 
-            <div className="table-header">
+            <div className="empty-state">
 
-              <span>RISK</span>
-              <span>USER</span>
-              <span>ACTION</span>
-              <span>RESOURCE</span>
-              <span>STATUS</span>
-              <span>ML</span>
-              <span>SCORE</span>
+              <div className="empty-icon">
+                ✓
+              </div>
+
+              <h3>
+                No alerts found
+              </h3>
+
+              <p>
+                No suspicious activity matches
+                the selected filter.
+              </p>
 
             </div>
 
-            {filteredAlerts.map((alert, index) => (
+          )}
 
-              <div
-                className="table-row"
-                key={alert.log_id || index}
-              >
 
-                {/* RISK */}
+        {/* ====================================================
+            TABLE
+        ==================================================== */}
 
-                <span>
-                  <RiskBadge
-                    level={alert.risk_level}
-                  />
-                </span>
+        {!loading &&
+          filteredAlerts.length > 0 && (
 
-                {/* USER */}
+            <div className="threat-table">
 
-                <span className="user-cell">
+              {/* TABLE HEADER */}
 
-                  <strong>
-                    {alert.username || "Unknown"}
-                  </strong>
-
-                  <small>
-                    ID: {alert.user_id ?? "-"}
-                  </small>
-
-                </span>
-
-                {/* ACTION */}
+              <div className="table-header">
 
                 <span>
-                  <code>
-                    {alert.action || "-"}
-                  </code>
+                  RISK
                 </span>
-
-                {/* RESOURCE */}
 
                 <span>
-                  {alert.resource_type || "-"}
+                  USER
                 </span>
-
-                {/* STATUS */}
 
                 <span>
-
-                  <span
-                    className={`status-badge ${
-                      alert.status === "denied"
-                        ? "denied"
-                        : "success"
-                    }`}
-                  >
-                    {alert.status || "-"}
-                  </span>
-
+                  ACTION
                 </span>
-
-                {/* ML */}
 
                 <span>
-
-                  <span className="ml-badge">
-                    {isMlAnomaly(alert)
-                      ? "ANOMALY"
-                      : "NORMAL"}
-                  </span>
-
+                  RESOURCE
                 </span>
 
-                {/* SCORE */}
+                <span>
+                  STATUS
+                </span>
 
-                <strong>
-                  {alert.risk_score ?? 0}
-                </strong>
+                <span>
+                  ML
+                </span>
+
+                <span>
+                  SCORE
+                </span>
 
               </div>
 
-            ))}
 
-          </div>
+              {/* TABLE ROWS */}
 
-        )}
+              {filteredAlerts.map(
+                (alert, index) => (
+
+                  <div
+                    className="table-row"
+                    key={
+                      alert.log_id || index
+                    }
+                  >
+
+                    {/* RISK */}
+
+                    <span>
+                      <RiskBadge
+                        level={
+                          alert.risk_level
+                        }
+                      />
+                    </span>
+
+
+                    {/* USER */}
+
+                    <span className="user-cell">
+
+                      <strong>
+                        {alert.username ||
+                          "Unknown"}
+                      </strong>
+
+                      <small>
+                        ID:{" "}
+                        {alert.user_id ??
+                          "-"}
+                      </small>
+
+                    </span>
+
+
+                    {/* ACTION */}
+
+                    <span>
+
+                      <code>
+                        {alert.action ||
+                          "-"}
+                      </code>
+
+                    </span>
+
+
+                    {/* RESOURCE */}
+
+                    <span>
+                      {alert.resource_type ||
+                        "-"}
+                    </span>
+
+
+                    {/* STATUS */}
+
+                    <span>
+
+                      <span
+                        className={`status-badge ${
+                          alert.status?.toLowerCase() ===
+                          "denied"
+                            ? "denied"
+                            : "success"
+                        }`}
+                      >
+                        {alert.status ||
+                          "-"}
+                      </span>
+
+                    </span>
+
+
+                    {/* ML */}
+
+                    <span>
+
+                      <span
+                        className={
+                          alert.ml_anomaly
+                            ? "ml-badge anomaly"
+                            : "ml-badge normal"
+                        }
+                      >
+                        {alert.ml_anomaly
+                          ? "ANOMALY"
+                          : "NORMAL"}
+                      </span>
+
+                    </span>
+
+
+                    {/* SCORE */}
+
+                    <strong>
+                      {alert.risk_score ??
+                        0}
+                    </strong>
+
+                  </div>
+
+                )
+              )}
+
+            </div>
+
+          )}
+
+
+        {/* ====================================================
+            ALERT DETAILS
+        ==================================================== */}
+
+        {!loading &&
+          filteredAlerts.length > 0 && (
+
+            <div className="alert-details-section">
+
+              <div className="card-header">
+
+                <div>
+
+                  <h3>
+                    Detection Details
+                  </h3>
+
+                  <p>
+                    Reasons behind detected threats
+                  </p>
+
+                </div>
+
+              </div>
+
+
+              {filteredAlerts.map(
+                (alert, index) => (
+
+                  <div
+                    className="alert-detail"
+                    key={
+                      `detail-${alert.log_id || index}`
+                    }
+                  >
+
+                    <div className="alert-detail-header">
+
+                      <strong>
+                        {alert.username ||
+                          "Unknown User"}
+                      </strong>
+
+                      <RiskBadge
+                        level={
+                          alert.risk_level
+                        }
+                      />
+
+                    </div>
+
+
+                    <div className="alert-detail-info">
+
+                      <span>
+                        Action:{" "}
+                        <code>
+                          {alert.action ||
+                            "-"}
+                        </code>
+                      </span>
+
+                      <span>
+                        Resource:{" "}
+                        {alert.resource_type ||
+                          "-"}
+                      </span>
+
+                      <span>
+                        Score:{" "}
+                        {alert.risk_score ??
+                          0}
+                      </span>
+
+                      <span>
+                        ML:{" "}
+                        {alert.ml_anomaly
+                          ? "ANOMALY"
+                          : "NORMAL"}
+                      </span>
+
+                    </div>
+
+
+                    {Array.isArray(
+                      alert.reasons
+                    ) &&
+                      alert.reasons.length >
+                        0 && (
+
+                        <div className="alert-reasons">
+
+                          <strong>
+                            Detection reasons:
+                          </strong>
+
+                          <ul>
+
+                            {alert.reasons.map(
+                              (
+                                reason,
+                                reasonIndex
+                              ) => (
+
+                                <li
+                                  key={
+                                    reasonIndex
+                                  }
+                                >
+                                  {reason}
+                                </li>
+
+                              )
+                            )}
+
+                          </ul>
+
+                        </div>
+
+                      )}
+
+                  </div>
+
+                )
+              )}
+
+            </div>
+
+          )}
 
       </div>
 
@@ -342,32 +633,22 @@ function Alerts() {
 }
 
 
-/* =========================
-   ML CHECK
-========================= */
-
-function isMlAnomaly(alert) {
-  return (
-    alert.ml_prediction === true ||
-    alert.ml_anomaly === true ||
-    alert.ml_prediction === "anomaly"
-  );
-}
-
-
-/* =========================
+/* ============================================================
    RISK BADGE
-========================= */
+============================================================ */
 
 function RiskBadge({ level }) {
+
+  const normalizedLevel =
+    level?.toUpperCase() || "LOW";
 
   return (
     <span
       className={`risk-badge ${
-        level?.toLowerCase() || "low"
+        normalizedLevel.toLowerCase()
       }`}
     >
-      {level || "LOW"}
+      {normalizedLevel}
     </span>
   );
 }
