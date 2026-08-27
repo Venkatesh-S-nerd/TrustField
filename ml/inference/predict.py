@@ -1,169 +1,145 @@
-import os
+from pathlib import Path
 
 import joblib
 import pandas as pd
 
 
 # ============================================================
-# PATHS
+# FIND TRUSTFIELD PROJECT ROOT
 # ============================================================
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CURRENT_FILE = Path(__file__).resolve()
 
-MODEL_PATH = os.path.join(
-    BASE_DIR,
-    "models",
-    "anomaly_detector.pkl"
+PROJECT_ROOT = None
+
+for parent in CURRENT_FILE.parents:
+    possible_model = parent / "ml" / "models" / "anomaly_detector.pkl"
+
+    if possible_model.exists():
+        PROJECT_ROOT = parent
+        break
+
+
+if PROJECT_ROOT is None:
+    raise FileNotFoundError(
+        "Could not find anomaly_detector.pkl anywhere above predict.py"
+    )
+
+
+# ============================================================
+# MODEL PATH
+# ============================================================
+
+MODEL_PATH = (
+    PROJECT_ROOT
+    / "ml"
+    / "models"
+    / "anomaly_detector.pkl"
 )
+
+
+print(f"Loading model from: {MODEL_PATH}")
 
 
 # ============================================================
 # LOAD MODEL
 # ============================================================
 
-def load_model():
+model_data = joblib.load(MODEL_PATH)
 
-    if not os.path.exists(MODEL_PATH):
-        raise FileNotFoundError(
-            f"ML model not found at: {MODEL_PATH}"
-        )
+model = model_data["model"]
 
-    return joblib.load(MODEL_PATH)
+action_encoder = model_data["action_encoder"]
+resource_encoder = model_data["resource_encoder"]
+status_encoder = model_data["status_encoder"]
+
+features = model_data["features"]
 
 
 # ============================================================
 # PREDICT ANOMALY
 # ============================================================
 
-def predict_anomaly(data):
+def predict_anomaly(event: dict) -> dict:
 
-    """
-    Predict whether a log/activity is anomalous.
+    user_id = event.get("user_id", 0)
 
-    Expected input:
-
-    {
-        "user_id": 2,
-        "action": "CHANGE_ROLE",
-        "resource_type": "users",
-        "status": "denied",
-        "timestamp": "2026-08-20T13:03:00"
-    }
-    """
-
-    bundle = load_model()
-
-    model = bundle["model"]
-
-    action_encoder = bundle["action_encoder"]
-    resource_encoder = bundle["resource_encoder"]
-    status_encoder = bundle["status_encoder"]
-
-    features = bundle["features"]
-
-
-    # ========================================================
-    # CONVERT INPUT TO DATAFRAME
-    # ========================================================
-
-    if isinstance(data, dict):
-        data = pd.DataFrame([data])
-
-    else:
-        data = data.copy()
-
-
-    # ========================================================
-    # PREPARE TIMESTAMP
-    # ========================================================
-
-    data["timestamp"] = pd.to_datetime(
-        data["timestamp"]
+    action = str(
+        event.get("action", "")
     )
 
-    data["hour"] = data["timestamp"].dt.hour
+    resource_type = str(
+        event.get("resource_type", "")
+    )
+
+    status = str(
+        event.get("status", "")
+    )
+
+    timestamp = event.get("timestamp")
+
+    if timestamp is None:
+        raise ValueError(
+            "Event timestamp is required"
+        )
+
+    timestamp = pd.to_datetime(timestamp)
+
+    hour = timestamp.hour
 
 
-    # ========================================================
-    # ENCODE CATEGORICAL FEATURES
-    # ========================================================
+    # --------------------------------------------------------
+    # Encode values
+    # --------------------------------------------------------
 
     try:
 
-        data["action_encoded"] = action_encoder.transform(
-            data["action"].astype(str)
-        )
+        action_encoded = action_encoder.transform(
+            [action]
+        )[0]
 
-        data["resource_encoded"] = resource_encoder.transform(
-            data["resource_type"].astype(str)
-        )
+        resource_encoded = resource_encoder.transform(
+            [resource_type]
+        )[0]
 
-        data["status_encoded"] = status_encoder.transform(
-            data["status"].astype(str)
-        )
+        status_encoded = status_encoder.transform(
+            [status]
+        )[0]
 
-    except ValueError as error:
+    except ValueError:
 
-        raise ValueError(
-            "Input contains a value that was not present "
-            "during model training. "
-            f"Details: {error}"
-        )
-
-
-    # ========================================================
-    # SELECT SAME FEATURES USED DURING TRAINING
-    # ========================================================
-
-    X = data[features]
+        return {
+            "prediction": -1,
+            "anomaly": True
+        }
 
 
-    # ========================================================
-    # RUN MODEL
-    # ========================================================
+    # --------------------------------------------------------
+    # Create features
+    # --------------------------------------------------------
 
-    prediction = model.predict(X)
-
-
-    # ========================================================
-    # CONVERT RESULT
-    # ========================================================
-
-    results = []
-
-    for value in prediction:
-
-        results.append({
-            "prediction": int(value),
-            "anomaly": bool(value == -1)
-        })
+    input_data = pd.DataFrame(
+        [[
+            user_id,
+            action_encoded,
+            resource_encoded,
+            status_encoded,
+            hour
+        ]],
+        columns=features
+    )
 
 
-    # ========================================================
-    # SINGLE RECORD
-    # ========================================================
+    # --------------------------------------------------------
+    # Predict
+    # --------------------------------------------------------
 
-    if len(results) == 1:
-        return results[0]
+    prediction = model.predict(
+        input_data
+    )[0]
 
-
-    return results
-def predict_anomaly(log):
-    """
-    Basic anomaly prediction placeholder.
-
-    Returns:
-        dict containing anomaly status and score.
-    """
 
     return {
-        "is_anomaly": False,
-        "score": 0.0,
-        "reason": "No anomaly detected"
-    }
-def predict_anomaly(log):
-    return {
-        "is_anomaly": False,
-        "score": 0.0,
-        "reason": "No anomaly detected"
+        "prediction": int(prediction),
+        "anomaly": bool(prediction == -1)
     }
